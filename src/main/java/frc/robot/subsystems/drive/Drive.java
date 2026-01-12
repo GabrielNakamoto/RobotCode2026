@@ -1,9 +1,23 @@
 package frc.robot.subsystems.drive;
 
+import static edu.wpi.first.units.Units.Meter;
+import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.RadiansPerSecond;
+
+import java.util.Arrays;
+import java.util.Comparator;
+
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.units.measure.Velocity;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Robot;
 import frc.robot.StateSubsystem;
 import frc.robot.subsystems.drive.GyroIO.GyroIOInputs;
+
 
 public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.SystemState> {
 	public enum SystemState {
@@ -12,11 +26,29 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 		TO_POSE,
 	};
 
+	public class RobotVelocity {
+		public AngularVelocity omega = RadiansPerSecond.of(0);
+		public Translation2d headingVelocity = Translation2d.kZero;
+
+		public RobotVelocity() {}
+		public RobotVelocity(AngularVelocity omega, Translation2d headingVel) {
+			this.omega = omega;
+			this.headingVelocity = headingVel;	
+		}
+
+		public RobotVelocity chassisRelative() {
+			return new RobotVelocity(
+				omega,
+				this.headingVelocity.rotateBy(gyroData.yaw)
+			);
+		}
+	};
+
 	private final Module[] swerveModules = {};
 	private final GyroIO gyro;
 
 	private final GyroIOInputsAutoLogged gyroData = new GyroIOInputsAutoLogged();
-	private Translation2d fieldRelVelocity = Translation2d.kZero;
+	private RobotVelocity fieldRelVelocity = new RobotVelocity();
 
 	public Drive(GyroIO gyro) {
 		this.gyro = gyro;
@@ -31,15 +63,43 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 	@Override
 	protected void applyState() {
 		switch (getCurrentState()) {
+			case TELEOP_DRIVE: {
+				final RobotVelocity chassisVel = fieldRelVelocity.chassisRelative();
+				runChassisRelativeVelocity(chassisVel);
+
+				break;
+			}
+			case TO_POSE: {
+				break;
+			}
 		}
 	}
 
+	private void runChassisRelativeVelocity(RobotVelocity chassisVel) {
+		final Translation2d translationVel = chassisVel.headingVelocity;
+		final AngularVelocity omega = chassisVel.omega;
 
-	private Translation2d chassisRelativeVelocity() {
-		return this.fieldRelVelocity.rotateBy(gyroData.yaw);
+		var moduleVelocities = Arrays.stream(swerveModules)
+			.map(m -> m.chassisToModule(translationVel, omega));
+		final double maxVelocity = moduleVelocities
+			.mapToDouble(v -> v.getNorm())
+			.max()
+			.orElse(0.0);
+
+		// Normalize module velocities to preserve direction when exceeding speed limits
+		// Accounts for max drive + max turn requested at same time
+		if (maxVelocity > DriveConstants.maxLinearSpeed) {
+			final double factor = DriveConstants.maxLinearSpeed / maxVelocity;
+			moduleVelocities = moduleVelocities.map(v -> v.times(factor));
+		}
+
+		final var mvs = moduleVelocities.toList();
+		for (int i = 0; i < 4; ++	i) {
+			swerveModules[i].runVelocity(mvs.get(i));
+		}
 	}
-	
-	public void setFieldRelativeVelocity(Translation2d velocity) {
+
+	public void setFieldRelativeVelocity(RobotVelocity velocity) {
 		this.fieldRelVelocity = velocity;
 	}
 }

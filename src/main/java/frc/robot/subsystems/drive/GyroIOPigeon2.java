@@ -25,8 +25,8 @@ public class GyroIOPigeon2 implements GyroIO {
 
     @Override
     public void updateInputs(GyroIOInputs inputs) {
+        inputs.isConnected = pigeon.isConnected();
         inputs.yaw = new Rotation2d(yaw.getValue());
         inputs.yawVelocity = yawVelocity.getValue();
-        inputs.isConnected = pigeon.isConnected();
     }
 }
