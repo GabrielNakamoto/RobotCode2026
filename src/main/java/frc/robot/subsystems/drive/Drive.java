@@ -9,12 +9,16 @@ import java.util.Comparator;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Velocity;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Robot;
+import frc.robot.RobotState;
+import frc.robot.RobotState.OdometryObservation;
 import frc.robot.StateSubsystem;
 import frc.robot.subsystems.drive.GyroIO.GyroIOInputs;
 
@@ -50,6 +54,8 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 	private final GyroIOInputsAutoLogged gyroData = new GyroIOInputsAutoLogged();
 	private RobotVelocity fieldRelVelocity = new RobotVelocity();
 
+	private Pose2d lastPoseEstimate = Pose2d.kZero;
+
 	public Drive(GyroIO gyro) {
 		this.gyro = gyro;
 	}
@@ -58,6 +64,16 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 	public void periodic() {
 		gyro.updateInputs(gyroData);
 		updateState();
+
+		final Translation2d[] moduleDisplacements = Arrays.stream(swerveModules)
+			.map(Module::getArcDisplacement)
+			.toArray(Translation2d[]::new);
+
+		RobotState.getInstance().addOdometryObservation(new OdometryObservation(
+					Timer.getFPGATimestamp(),
+					gyroData.yaw,
+					moduleDisplacements
+		));
 	}
 
 	@Override
@@ -72,6 +88,7 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 			case TO_POSE: {
 				break;
 			}
+			default: break;
 		}
 	}
 

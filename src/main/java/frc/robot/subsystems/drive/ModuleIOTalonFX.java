@@ -1,7 +1,9 @@
 package frc.robot.subsystems.drive;
 
 import static edu.wpi.first.units.Units.Meters;
+import static edu.wpi.first.units.Units.Radians;
 import static edu.wpi.first.units.Units.MetersPerSecond;
+import edu.wpi.first.units.measure.Distance;
 
 import java.util.concurrent.CancellationException;
 
@@ -132,7 +134,7 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
 
     inputs.driveConnected = driveStatusDebouncer.calculate(driveStatus.isOK());
     inputs.driveVelocity = driveVelocity.getValue();
-    inputs.drivePosition = drivePosition.getValue();
+    inputs.drivePosition = Meters.of(drivePosition.getValue().in(Radians) / constants.DriveMotorGearRatio);
 
     inputs.turnConnected = turnStatusDebouncer.calculate(turnStatus.isOK());
     inputs.absoluteTurnHeading = new Rotation2d(turnPositionAbsolute.getValue());
