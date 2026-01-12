@@ -25,10 +25,13 @@ public class Module {
         this.chassisPosition = chassisPosition;
     }
 
+		// Forward kinematics (chassis velocities -> module velocities)
+		// Inspired by 1690 Orbit: https://www.youtube.com/watch?v=vUtVXz7ebEE&t=322s
     public Translation2d chassisToModule(Translation2d translationVelocity, AngularVelocity omega) {
-        // Forward kinematics (chassis velocities -> module velocities)
+				// w = r x v
         final double radiusMeters = chassisPosition.getNorm();
         final LinearVelocity rotationalVel = MetersPerSecond.of(omega.in(RadiansPerSecond) * radiusMeters);
+
         Translation2d tangentVector =  chassisPosition.rotateBy(Rotation2d.fromDegrees(90));
         tangentVector.div(tangentVector.getNorm());
         final Translation2d rotationVelocity = tangentVector.times(rotationalVel.in(MetersPerSecond));
