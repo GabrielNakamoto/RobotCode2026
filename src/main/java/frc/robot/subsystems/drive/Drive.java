@@ -7,6 +7,7 @@ import static edu.wpi.first.units.Units.RadiansPerSecond;
 import java.util.Arrays;
 import java.util.Comparator;
 
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Transform2d;
@@ -48,7 +49,7 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 		}
 	};
 
-	private final Module[] swerveModules = {};
+	private final Module[] swerveModules = new Module[4];
 	private final GyroIO gyro;
 
 	private final GyroIOInputsAutoLogged gyroData = new GyroIOInputsAutoLogged();
@@ -56,15 +57,29 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 
 	private Pose2d lastPoseEstimate = Pose2d.kZero;
 
-	public Drive(GyroIO gyro) {
+	public Drive(
+			GyroIO gyro,
+			ModuleIO flModuleIO,
+			ModuleIO frModuleIO,
+			ModuleIO blModuleIO,
+			ModuleIO brModuleIO) {
 		this.gyro = gyro;
+		this.swerveModules[0] = new Module(flModuleIO, 0);
+		this.swerveModules[1] = new Module(frModuleIO, 1);
+		this.swerveModules[2] = new Module(blModuleIO, 2);
+		this.swerveModules[3] = new Module(brModuleIO, 3);
 	}
 
 	@Override
 	public void periodic() {
 		gyro.updateInputs(gyroData);
-		updateState();
+		Logger.processInputs("Drive/Gryo", gyroData);
 
+		for (Module m : swerveModules) {
+			m.periodic();
+		}
+
+		updateState();
 		final Translation2d[] moduleDisplacements = Arrays.stream(swerveModules)
 			.map(Module::getArcDisplacement)
 			.toArray(Translation2d[]::new);
@@ -79,15 +94,11 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 	@Override
 	protected void applyState() {
 		switch (getCurrentState()) {
-			case TELEOP_DRIVE: {
-				final RobotVelocity chassisVel = fieldRelVelocity.chassisRelative();
-				runChassisRelativeVelocity(chassisVel);
-
+			case TELEOP_DRIVE:
+				runChassisRelativeVelocity(fieldRelVelocity.chassisRelative());
 				break;
-			}
-			case TO_POSE: {
+			case TO_POSE: // TODO: implement
 				break;
-			}
 			default: break;
 		}
 	}

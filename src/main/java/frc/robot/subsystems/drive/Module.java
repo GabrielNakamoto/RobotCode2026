@@ -4,6 +4,7 @@ import static edu.wpi.first.units.Units.*;
 
 import org.littletonrobotics.junction.Logger;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.Measure;
@@ -24,10 +25,10 @@ public class Module {
 		private Distance lastPos = Meters.of(0.0);
 		private Rotation2d lastHeading = Rotation2d.kZero;
 
-    public Module(ModuleIO io, Translation2d chassisPosition, int index) {
+    public Module(ModuleIO io, int index) {
         this.io = io;
         this.index = index;
-        this.chassisPosition = chassisPosition;
+        this.chassisPosition = DriveConstants.modulePositions[index];
     }
 
 		// Forward kinematics (chassis velocities -> module velocities)
@@ -37,8 +38,9 @@ public class Module {
         final double radiusMeters = chassisPosition.getNorm();
         final LinearVelocity rotationalVel = MetersPerSecond.of(omega.in(RadiansPerSecond) * radiusMeters);
 
-        Translation2d tangentVector =  chassisPosition.rotateBy(Rotation2d.fromDegrees(90));
-        tangentVector.div(tangentVector.getNorm());
+				// TODO: Positive counter clockwise?
+        Translation2d tangentVector = chassisPosition.rotateBy(Rotation2d.fromDegrees(90));
+        tangentVector = tangentVector.div(tangentVector.getNorm());
         final Translation2d rotationVelocity = tangentVector.times(rotationalVel.in(MetersPerSecond));
 
         return translationVelocity.plus(rotationVelocity);
@@ -62,7 +64,7 @@ public class Module {
 			// Handle small theta values, radius calculation will blow up
 			// just return straight line distance
 			if (Math.abs(theta.getRadians()) < 1e-6) {
-				return new Translation2d(arcLength, Meters.of(0.0));
+				return new Translation2d(arcLength.in(Meters), moduleToChassis);
 			}
 
 			final double radius = arcLength.in(Meters) / theta.getRadians();
@@ -74,7 +76,37 @@ public class Module {
 			return arcDisplacement.rotateBy(moduleToChassis);
 		}
 
+		// Prioritizes turning by decreasing speed
+		// Reduces speed if module isnt pointing in desired direction
+		// https://docs.wpilib.org/en/stable/docs/software/kinematics-and-odometry/swerve-drive-kinematics.html#cosine-compensation
+		private Translation2d cosineOptimize(Translation2d velocity) {
+			final var angleError = velocity.getAngle()
+				.minus(inputs.absoluteTurnHeading);
+			final double factor = Math.abs(angleError.getCos());
+			return velocity.times(factor);
+		}
+
+		// Ensures wheel doesnt rotate > 90°, chooses faster path
+		private Translation2d angleOptimize(Translation2d velocity) {
+			double targetAngle = velocity.getAngle().getRadians();
+			double currentAngle = inputs.absoluteTurnHeading.getRadians();
+
+			// Wraps pi -> -pi
+			double angleError = MathUtil.angleModulus(targetAngle - currentAngle);
+			if (Math.abs(angleError) > Math.PI / 2) {
+				return new Translation2d(
+						velocity.getNorm(),
+						Rotation2d.fromRadians(targetAngle + Math.PI)
+				);
+			} else {
+				return velocity;
+			}
+		}
+
     public void runVelocity(Translation2d velocity) {
+				velocity = angleOptimize(velocity);
+				velocity = cosineOptimize(velocity);
+
         outputs.turnHeading = velocity.getAngle();
         outputs.driveVelocity = MetersPerSecond.of(velocity.getNorm()); 
     }

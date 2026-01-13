@@ -28,6 +28,6 @@ public interface ModuleIO {
 		public Rotation2d turnHeading;
 	}
 
-	public void updateInputs(ModuleIOInputs inputs);
-	public void applyOutputs(ModuleIOOutputs outputs);
+	public default void updateInputs(ModuleIOInputs inputs) {};
+	public default void applyOutputs(ModuleIOOutputs outputs) {};
 }

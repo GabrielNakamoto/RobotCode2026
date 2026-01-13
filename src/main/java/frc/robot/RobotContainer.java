@@ -10,6 +10,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.GyroIO;
 import frc.robot.subsystems.drive.GyroIOPigeon2;
+import frc.robot.subsystems.drive.ModuleIO;
 
 public class RobotContainer {
   public final Drive drive;
@@ -17,10 +18,22 @@ public class RobotContainer {
   public RobotContainer() {
     switch (Constants.getMode()) {
       case REAL:
-        drive = new Drive(new GyroIOPigeon2() {});
+        drive = new Drive(
+						new GyroIOPigeon2() {},
+						new ModuleIO() {},
+						new ModuleIO() {},
+						new ModuleIO() {},
+						new ModuleIO() {}
+					);
         break;
       default:
-        drive = new Drive(new GyroIO() {});
+        drive = new Drive(
+						new GyroIO() {},
+						new ModuleIO() {},
+						new ModuleIO() {},
+						new ModuleIO() {},
+						new ModuleIO() {}
+					);
         break;
     }
 
