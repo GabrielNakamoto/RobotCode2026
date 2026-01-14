@@ -2,6 +2,7 @@ package frc.robot.subsystems.drive;
 import static edu.wpi.first.units.Units.Radians;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
+import static edu.wpi.first.units.Units.MetersPerSecond;
 
 import org.littletonrobotics.junction.AutoLog;
 
@@ -16,7 +17,7 @@ public interface ModuleIO {
 	public static class ModuleIOInputs {
 		public boolean driveConnected = false;
 		public Distance drivePosition = Meters.of(0.0);
-		public AngularVelocity driveVelocity = RadiansPerSecond.of(0.0);
+		public LinearVelocity driveVelocity = MetersPerSecond.of(0.0);
 
 		public boolean turnConnected = false;
 		public Rotation2d absoluteTurnHeading = Rotation2d.kZero;
