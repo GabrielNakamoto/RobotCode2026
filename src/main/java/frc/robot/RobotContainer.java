@@ -4,7 +4,6 @@
 
 package frc.robot;
 
-import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.drive.Drive;
@@ -18,30 +17,29 @@ public class RobotContainer {
   public RobotContainer() {
     switch (Constants.getMode()) {
       case REAL:
-        drive = new Drive(
-						new GyroIOPigeon2() {},
-						new ModuleIO() {},
-						new ModuleIO() {},
-						new ModuleIO() {},
-						new ModuleIO() {}
-					);
+        drive =
+            new Drive(
+                new GyroIOPigeon2() {},
+                new ModuleIO() {},
+                new ModuleIO() {},
+                new ModuleIO() {},
+                new ModuleIO() {});
         break;
       default:
-        drive = new Drive(
-						new GyroIO() {},
-						new ModuleIO() {},
-						new ModuleIO() {},
-						new ModuleIO() {},
-						new ModuleIO() {}
-					);
+        drive =
+            new Drive(
+                new GyroIO() {},
+                new ModuleIO() {},
+                new ModuleIO() {},
+                new ModuleIO() {},
+                new ModuleIO() {});
         break;
     }
 
     configureBindings();
   }
 
-  private void configureBindings() {
-  }
+  private void configureBindings() {}
 
   public Command getAutonomousCommand() {
     return Commands.print("No autonomous command configured");

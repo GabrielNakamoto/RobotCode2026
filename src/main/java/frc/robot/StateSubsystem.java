@@ -5,7 +5,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 /*
  * Generic interface for a state based robot subsystem.
  * Relies on a subsystem specific state space enumeration E
- * 
+ *
  * Implementations should:
  * - call updateState() in their periodic function
  * - implement applyState() to perform hardware/simulation I/O corresponding to the current state
@@ -13,25 +13,26 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
  *  ex. moving to certain position to avoid objects
  */
 public abstract class StateSubsystem<E extends Enum<E>> extends SubsystemBase {
-    private E currentState;
-    protected E requestedState;
+  private E currentState;
+  protected E requestedState;
 
-    public final void setState(E state) {
-        this.requestedState = state;
-    }
+  public final void setState(E state) {
+    this.requestedState = state;
+  }
 
-    protected final void updateState() {
-        this.currentState = handleStateTransitions();
-        applyState();
-    }
+  protected final void updateState() {
+    this.currentState = handleStateTransitions();
+    applyState();
+  }
 
-    protected abstract void applyState();
+  protected abstract void applyState();
 
-    protected E handleStateTransitions() {
-        return requestedState;
-    };
+  protected E handleStateTransitions() {
+    return requestedState;
+  }
+  ;
 
-    protected final E getCurrentState() {
-        return currentState;
-    }
+  protected final E getCurrentState() {
+    return currentState;
+  }
 }
