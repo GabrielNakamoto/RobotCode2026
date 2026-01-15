@@ -1,11 +1,10 @@
 package frc.robot.subsystems.drive;
 
-import static edu.wpi.first.units.Units.RadiansPerSecond;
+import static edu.wpi.first.units.Units.*;
 
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.AngularVelocity;
@@ -13,8 +12,7 @@ import edu.wpi.first.wpilibj.Timer;
 import frc.robot.RobotState;
 import frc.robot.RobotState.OdometryObservation;
 import frc.robot.StateSubsystem;
-import frc.robot.SwerveDynamics;
-import frc.robot.VectorUtil;
+import frc.robot.SwerveDynamics.ChassisVelocity;
 import java.util.Arrays;
 import org.littletonrobotics.junction.Logger;
 
@@ -25,34 +23,22 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     TO_POSE,
   };
 
-  public static class RobotVelocity {
-    public AngularVelocity omega = RadiansPerSecond.of(0);
-    public Translation2d headingVelocity = Translation2d.kZero;
-
-    public RobotVelocity() {}
-
-    public RobotVelocity(AngularVelocity omega, Translation2d headingVel) {
-      this.omega = omega;
-      this.headingVelocity = headingVel;
-    }
-
-    public RobotVelocity chassisRelative(Rotation2d yaw) {
-      return new RobotVelocity(omega, this.headingVelocity.rotateBy(yaw));
-    }
-  }
-  ;
-
   private final Module[] swerveModules = new Module[4];
   private final GyroIO gyro;
 
   private final GyroIOInputsAutoLogged gyroData = new GyroIOInputsAutoLogged();
-  private RobotVelocity fieldRelVelocity = new RobotVelocity();
-  private RobotVelocity currentChassisVelocity = new RobotVelocity();
+
+  private Translation2d fieldVelocity = Translation2d.kZero;
+  private AngularVelocity fieldOmega = RadiansPerSecond.zero();
+
+  private ChassisVelocity currentChassisVelocity = new ChassisVelocity();
+
   private Pose2d targetPose = Pose2d.kZero;
 
   private PIDController linearController = new PIDController(0, 0, 0);
   private ProfiledPIDController omegaController =
       new ProfiledPIDController(0, 0, 0, new TrapezoidProfile.Constraints(0, 0));
+  private Translation2d[] moduleDisplacements = new Translation2d[4];
 
   public Drive(
       GyroIO gyro,
@@ -78,69 +64,49 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
       m.periodic();
     }
 
-    updateState();
-    final Translation2d[] moduleDisplacements =
+    currentChassisVelocity = ChassisVelocity.forwardKinematics(swerveModules);
+    moduleDisplacements =
         Arrays.stream(swerveModules).map(Module::getDisplacement).toArray(Translation2d[]::new);
 
     RobotState.getInstance()
         .addOdometryObservation(
             new OdometryObservation(Timer.getFPGATimestamp(), gyroData.yaw, moduleDisplacements));
 
-    // TODO: update chassis velocities
-  }
-
-  // Forward kinematics?
-  public RobotVelocity getChassisVelocity() {
-    Translation2d vl = Translation2d.kZero;
-    AngularVelocity omega = RadiansPerSecond.of(0.0);
-
-    for (Module m : swerveModules) {
-      final Translation2d mv = m.getVelocity();
-      final Translation2d mp = m.getPosition();
-
-      vl = vl.plus(mv);
-      final double tangentSpeed = VectorUtil.tangentUnitVector(mp).dot(mv);
-
-      if (mp.getNorm() < 1e-6) continue;
-      omega = omega.plus(RadiansPerSecond.of(tangentSpeed / mp.getNorm())); // w = v / r
-    }
-    return new RobotVelocity(omega.div(swerveModules.length), vl.div(swerveModules.length));
+    updateState();
   }
 
   @Override
   protected void applyState() {
     switch (getCurrentState()) {
       case TELEOP_DRIVE:
-        runChassisRelativeVelocity(fieldRelVelocity.chassisRelative(gyroData.yaw));
+        runChassisRelativeVelocity(
+            new ChassisVelocity(fieldOmega, fieldVelocity.rotateBy(gyroData.yaw)));
         break;
-      case TO_POSE: // TODO: implement
+      case TO_POSE:
         break;
       default:
         break;
     }
   }
 
-  private void runChassisRelativeVelocity(RobotVelocity chassisVel) {
-    final Translation2d translationVel = chassisVel.headingVelocity;
-    final AngularVelocity omega = chassisVel.omega;
+  private ChassisVelocity getCurrentChassisVelocity() {
+    return ChassisVelocity.forwardKinematics(swerveModules);
+  }
 
-    var moduleVelocities =
-        Arrays.stream(swerveModules)
-            .map(
-                m ->
-                    SwerveDynamics.chassisToModuleVelocity(m.getPosition(), translationVel, omega));
-    final double maxVelocity = moduleVelocities.mapToDouble(v -> v.getNorm()).max().orElse(0.0);
+  private void runChassisRelativeVelocity(ChassisVelocity velocity) {
+    var moduleVelocities = velocity.inverseKinematics(swerveModules);
+    final double maxVelocity =
+        Arrays.stream(moduleVelocities).mapToDouble(v -> v.getNorm()).max().orElse(0.0);
 
     // Normalize module velocities to preserve direction when exceeding speed limits
     // Accounts for max drive + max turn requested at same time
     if (maxVelocity > DriveConstants.maxLinearSpeed) {
       final double factor = DriveConstants.maxLinearSpeed / maxVelocity;
-      moduleVelocities = moduleVelocities.map(v -> v.times(factor));
+      Arrays.stream(moduleVelocities).map(v -> v.times(factor));
     }
 
-    final var mvs = moduleVelocities.toList();
     for (int i = 0; i < 4; ++i) {
-      swerveModules[i].runVelocity(mvs.get(i));
+      swerveModules[i].runVelocity(moduleVelocities[i]);
     }
   }
 
@@ -150,7 +116,8 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     linearController.reset();
   }
 
-  public void setFieldRelativeVelocity(RobotVelocity velocity) {
-    this.fieldRelVelocity = velocity;
+  public void setFieldRelativeVelocity(Translation2d velocity, AngularVelocity omega) {
+    this.fieldVelocity = velocity;
+    this.fieldOmega = omega;
   }
 }

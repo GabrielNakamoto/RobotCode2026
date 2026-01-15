@@ -6,6 +6,7 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.Distance;
 import frc.robot.SwerveDynamics;
+import frc.robot.SwerveDynamics.ModuleVelocity;
 import frc.robot.subsystems.drive.ModuleIO.ModuleIOOutputs;
 import org.littletonrobotics.junction.Logger;
 
@@ -25,7 +26,7 @@ public class Module {
     this.chassisPosition = DriveConstants.modulePositions[index];
   }
 
-  public Translation2d getPosition() {
+  public final Translation2d getChassisPosition() {
     return chassisPosition;
   }
 
@@ -42,13 +43,16 @@ public class Module {
     return displacement;
   }
 
-  public Translation2d getVelocity() {
+  public final Rotation2d getHeading() {
+    return inputs.absoluteTurnHeading;
+  }
+
+  public final Translation2d getVelocity() {
     return new Translation2d(inputs.driveVelocity.in(MetersPerSecond), inputs.absoluteTurnHeading);
   }
 
-  public void runVelocity(Translation2d velocity) {
-    velocity = SwerveDynamics.closestAngle(velocity, inputs.absoluteTurnHeading);
-    velocity = SwerveDynamics.cosineOptimize(velocity, inputs.absoluteTurnHeading);
+  public void runVelocity(ModuleVelocity velocity) {
+    velocity.optimize(inputs.absoluteTurnHeading);
 
     outputs.turnHeading = velocity.getAngle();
     outputs.driveVelocity = MetersPerSecond.of(velocity.getNorm());
