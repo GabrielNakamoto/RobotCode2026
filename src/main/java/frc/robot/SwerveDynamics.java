@@ -8,6 +8,7 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
+import frc.robot.subsystems.drive.DriveConstants;
 import frc.robot.subsystems.drive.Module;
 import org.ejml.simple.SimpleMatrix;
 
@@ -23,6 +24,20 @@ public class SwerveDynamics {
   public static class ChassisVelocity {
     public AngularVelocity omega = RadiansPerSecond.zero();
     public Translation2d velocityVector = Translation2d.kZero;
+    // Precompute pseudo inverse chasiss matrix to reduce per cycle allocations
+    public static final SimpleMatrix pseudoMatrix =
+        new SimpleMatrix(
+                new double[][] {
+                  {1, 0, -DriveConstants.modulePositions[0].getY()},
+                  {0, 1, DriveConstants.modulePositions[0].getX()},
+                  {1, 0, -DriveConstants.modulePositions[1].getY()},
+                  {0, 1, DriveConstants.modulePositions[1].getX()},
+                  {1, 0, -DriveConstants.modulePositions[2].getY()},
+                  {0, 1, DriveConstants.modulePositions[2].getX()},
+                  {1, 0, -DriveConstants.modulePositions[3].getY()},
+                  {0, 1, DriveConstants.modulePositions[3].getX()},
+                })
+            .pseudoInverse();
 
     public ChassisVelocity() {}
 
@@ -35,21 +50,17 @@ public class SwerveDynamics {
     // Uses least squares method to solve unknown vector
     // https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse#Linear_least-squares
     public static ChassisVelocity forwardKinematics(Module[] modules) {
-      SimpleMatrix A = new SimpleMatrix(8, 3);
       SimpleMatrix B = new SimpleMatrix(8, 1);
 
       for (int i = 0; i < 4; ++i) {
-        final Translation2d pos = modules[i].getChassisPosition();
         final Translation2d vel = modules[i].getVelocity();
 
-        A.setRow(i * 2, new SimpleMatrix(new double[] {1, 0, -pos.getY()}));
-        A.setRow((i * 2) + 1, new SimpleMatrix(new double[] {0, 1, pos.getX()}));
         B.set(i * 2, vel.getX());
         B.set((i * 2) + 1, vel.getY());
       }
 
       // x ~= A+ @ b
-      final var bestFit = A.pseudoInverse().mult(B);
+      final var bestFit = pseudoMatrix.mult(B);
       return new ChassisVelocity(
           RadiansPerSecond.of(bestFit.get(2)), new Translation2d(bestFit.get(0), bestFit.get(1)));
     }
@@ -70,35 +81,51 @@ public class SwerveDynamics {
     }
   }
 
-  public static class ModuleVelocity extends Translation2d {
+  public static class ModuleVelocity {
+    private Translation2d velocity;
+
     public ModuleVelocity(Translation2d inner) {
-      super(inner.getNorm(), inner.getAngle());
+      this.velocity = inner;
     }
 
     public ModuleVelocity(double magnitude, Rotation2d angle) {
-      super(magnitude, angle);
+      this.velocity = new Translation2d(magnitude, angle);
+    }
+
+    public ModuleVelocity scale(double scalar) {
+      this.velocity = velocity.times(scalar);
+      return this;
+    }
+
+    public final Rotation2d getHeading() {
+      return velocity.getAngle();
     }
 
     public final LinearVelocity magnitude() {
-      return MetersPerSecond.of(this.getNorm());
+      return MetersPerSecond.of(velocity.getNorm());
     }
 
-    public ModuleVelocity optimize(Rotation2d heading) {
-      return this.closestAngle(heading).cosineOptimize(heading);
+    public final double getSpeedMps() {
+      return velocity.getNorm();
+    }
+
+    public void optimize(Rotation2d heading) {
+      closestAngle(heading);
+      cosineOptimize(heading);
     }
 
     // Reduces speed opposite to rotation vector
-    private ModuleVelocity cosineOptimize(Rotation2d heading) {
-      return new ModuleVelocity(this.times(this.getAngle().minus(heading).getCos()));
+    private void cosineOptimize(Rotation2d heading) {
+      this.velocity = velocity.times(velocity.getAngle().minus(heading).getCos());
     }
 
     // Prevents uneccessary heading changes > 90°, takes opposite angle
-    private ModuleVelocity closestAngle(Rotation2d heading) {
-      double angleError = MathUtil.angleModulus(this.getAngle().minus(heading).getRadians());
-      if (angleError > Math.PI / 2) {
-        return new ModuleVelocity(-this.getNorm(), this.getAngle().plus(Rotation2d.k180deg));
+    private void closestAngle(Rotation2d heading) {
+      double angleError = MathUtil.angleModulus(velocity.getAngle().minus(heading).getRadians());
+      if (Math.abs(angleError) > Math.PI / 2) {
+        this.velocity =
+            new Translation2d(-velocity.getNorm(), velocity.getAngle().plus(Rotation2d.k180deg));
       }
-      return this;
     }
   }
 

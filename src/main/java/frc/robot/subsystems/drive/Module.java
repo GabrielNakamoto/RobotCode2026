@@ -54,8 +54,8 @@ public class Module {
   public void runVelocity(ModuleVelocity velocity) {
     velocity.optimize(inputs.absoluteTurnHeading);
 
-    outputs.turnHeading = velocity.getAngle();
-    outputs.driveVelocity = MetersPerSecond.of(velocity.getNorm());
+    outputs.turnHeading = velocity.getHeading();
+    outputs.driveVelocity = velocity.magnitude();
   }
 
   public void periodic() {

@@ -96,13 +96,13 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
   private void runChassisRelativeVelocity(ChassisVelocity velocity) {
     var moduleVelocities = velocity.inverseKinematics(swerveModules);
     final double maxVelocity =
-        Arrays.stream(moduleVelocities).mapToDouble(v -> v.getNorm()).max().orElse(0.0);
+        Arrays.stream(moduleVelocities).mapToDouble(v -> v.getSpeedMps()).max().orElse(0.0);
 
     // Normalize module velocities to preserve direction when exceeding speed limits
     // Accounts for max drive + max turn requested at same time
     if (maxVelocity > DriveConstants.maxLinearSpeed) {
       final double factor = DriveConstants.maxLinearSpeed / maxVelocity;
-      Arrays.stream(moduleVelocities).map(v -> v.times(factor));
+      Arrays.stream(moduleVelocities).map(v -> v.scale(factor));
     }
 
     for (int i = 0; i < 4; ++i) {
