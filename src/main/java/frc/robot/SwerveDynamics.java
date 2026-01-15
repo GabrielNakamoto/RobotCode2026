@@ -24,10 +24,12 @@ public class SwerveDynamics {
   public static class ChassisVelocity {
     public AngularVelocity omega = RadiansPerSecond.zero();
     public Translation2d velocityVector = Translation2d.kZero;
+
     // Precompute pseudo inverse chasiss matrix to reduce per cycle allocations
-    public static final SimpleMatrix pseudoMatrix =
+    private static final SimpleMatrix pseudoMatrix =
         new SimpleMatrix(
                 new double[][] {
+                  // Cols = [ vx, vy, omega ]
                   {1, 0, -DriveConstants.modulePositions[0].getY()},
                   {0, 1, DriveConstants.modulePositions[0].getX()},
                   {1, 0, -DriveConstants.modulePositions[1].getY()},
@@ -38,6 +40,7 @@ public class SwerveDynamics {
                   {0, 1, DriveConstants.modulePositions[3].getX()},
                 })
             .pseudoInverse();
+    private static SimpleMatrix moduleVelocityMatrix = new SimpleMatrix(8, 1);
 
     public ChassisVelocity() {}
 
@@ -46,25 +49,32 @@ public class SwerveDynamics {
       this.velocityVector = v;
     }
 
-    // Forward kinematics
-    // Uses least squares method to solve unknown vector
-    // https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse#Linear_least-squares
+    /* Forward kinematecs
+     * Uses least squares method to solve unknown vector
+     * https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse#Linear_least-squares
+     *
+     * Solves Ax = b
+     * where:
+     * 	A = constraint matrix  (8, 3)
+     * 	b = module velocity vector  (8, 1)
+     *  x = chassis velocity vector (3, 1)
+     */
     public static ChassisVelocity forwardKinematics(Module[] modules) {
-      SimpleMatrix B = new SimpleMatrix(8, 1);
-
       for (int i = 0; i < 4; ++i) {
         final Translation2d vel = modules[i].getVelocity();
-
-        B.set(i * 2, vel.getX());
-        B.set((i * 2) + 1, vel.getY());
+        moduleVelocityMatrix.setColumn(0, i * 2, new double[] {vel.getX(), vel.getY()});
       }
 
       // x ~= A+ @ b
-      final var bestFit = pseudoMatrix.mult(B);
+      final var bestFit = pseudoMatrix.mult(moduleVelocityMatrix);
       return new ChassisVelocity(
           RadiansPerSecond.of(bestFit.get(2)), new Translation2d(bestFit.get(0), bestFit.get(1)));
     }
 
+    /*
+     * Inverse kinematics to solve for individual module velocities
+     * from chasis velocities
+     */
     public ModuleVelocity[] inverseKinematics(Module[] modules) {
       var mvs = new ModuleVelocity[4];
 

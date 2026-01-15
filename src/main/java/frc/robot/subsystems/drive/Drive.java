@@ -7,6 +7,7 @@ import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj.Timer;
 import frc.robot.RobotState;
@@ -32,7 +33,6 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
   private AngularVelocity fieldOmega = RadiansPerSecond.zero();
 
   private ChassisVelocity currentChassisVelocity = new ChassisVelocity();
-
   private Pose2d targetPose = Pose2d.kZero;
 
   private PIDController linearController = new PIDController(0, 0, 0);
@@ -87,6 +87,10 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
       default:
         break;
     }
+  }
+
+  public void setYaw(Angle yaw) {
+    gyro.setYaw(yaw);
   }
 
   private ChassisVelocity getCurrentChassisVelocity() {

@@ -1,8 +1,9 @@
 package frc.robot.subsystems.drive;
 
-import static edu.wpi.first.units.Units.RadiansPerSecond;
+import static edu.wpi.first.units.Units.*;
 
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import org.littletonrobotics.junction.AutoLog;
 
@@ -16,5 +17,6 @@ public interface GyroIO {
   }
 
   public default void updateInputs(GyroIOInputs inputs) {}
-  ;
+
+  public default void setYaw(Angle newYaw) {}
 }

@@ -29,10 +29,19 @@ public class RobotState {
     odometryPose = poseEstimate;
   }
 
+  // TODO: implement
+  public void addVisionObservation(AprilTagObservation observation) {}
+
+  public final Pose2d getOdometryPose() {
+    return odometryPose;
+  }
+
   // TODO: add observation functions for vision and drive odometry
   public Pose2d getEstimatedRobotPose() {
     return Pose2d.kZero;
   }
+
+  public record AprilTagObservation(double timestamp, Pose2d visionPose) {}
 
   public record OdometryObservation(
       double timestamp, Rotation2d gyroYaw, Translation2d[] moduleDisplacements) {}
