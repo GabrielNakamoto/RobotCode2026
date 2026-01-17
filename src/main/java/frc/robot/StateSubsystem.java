@@ -16,7 +16,7 @@ public abstract class StateSubsystem<E extends Enum<E>> extends SubsystemBase {
   private E currentState;
   protected E requestedState;
 
-  public final void setState(E state) {
+  public void setState(E state) {
     this.requestedState = state;
   }
 
@@ -30,7 +30,10 @@ public abstract class StateSubsystem<E extends Enum<E>> extends SubsystemBase {
   protected E handleStateTransitions() {
     return requestedState;
   }
-  ;
+
+  protected final E getRequestedState() {
+    return requestedState;
+  }
 
   protected final E getCurrentState() {
     return currentState;

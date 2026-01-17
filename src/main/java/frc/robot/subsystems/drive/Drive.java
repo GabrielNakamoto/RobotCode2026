@@ -2,50 +2,61 @@ package frc.robot.subsystems.drive;
 
 import static edu.wpi.first.units.Units.*;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.Angle;
-import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.XboxController;
+import frc.robot.FieldConstants;
+import frc.robot.PheonixOdometryThread;
 import frc.robot.RobotState;
 import frc.robot.RobotState.OdometryObservation;
 import frc.robot.StateSubsystem;
 import frc.robot.SwerveDynamics.ChassisVelocity;
-import java.util.Arrays;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import org.littletonrobotics.junction.Logger;
 
 public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.SystemState> {
   public enum SystemState {
     IDLE,
     TELEOP_DRIVE,
-    TO_POSE,
+    TO_POSE_PID,
   };
 
+  public static Lock odometryLock = new ReentrantLock();
   private final Module[] swerveModules = new Module[4];
   private final GyroIO gyro;
 
   private final GyroIOInputsAutoLogged gyroData = new GyroIOInputsAutoLogged();
 
-  private Translation2d fieldVelocity = Translation2d.kZero;
-  private AngularVelocity fieldOmega = RadiansPerSecond.zero();
-
-  private ChassisVelocity currentChassisVelocity = new ChassisVelocity();
-  private Pose2d targetPose = Pose2d.kZero;
-
-  private PIDController linearController = new PIDController(0, 0, 0);
+  private PIDController linearController =
+      new PIDController(
+          DriveConstants.driveGains.kp(),
+          DriveConstants.driveGains.ki(),
+          DriveConstants.driveGains.kd());
   private ProfiledPIDController omegaController =
-      new ProfiledPIDController(0, 0, 0, new TrapezoidProfile.Constraints(0, 0));
+      new ProfiledPIDController(
+          DriveConstants.rotGains.kp(),
+          DriveConstants.rotGains.ki(),
+          DriveConstants.rotGains.kd(),
+          DriveConstants.rotConstraints);
   private Translation2d[] moduleDisplacements = new Translation2d[4];
+  private XboxController controller;
+
+  private Pose2d driveToPointPose = new Pose2d();
 
   public Drive(
       GyroIO gyro,
       ModuleIO flModuleIO,
       ModuleIO frModuleIO,
       ModuleIO blModuleIO,
-      ModuleIO brModuleIO) {
+      ModuleIO brModuleIO,
+      XboxController controller) {
+    this.controller = controller;
     this.gyro = gyro;
     this.swerveModules[0] = new Module(flModuleIO, 0);
     this.swerveModules[1] = new Module(frModuleIO, 1);
@@ -53,20 +64,25 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     this.swerveModules[3] = new Module(brModuleIO, 3);
 
     omegaController.enableContinuousInput(-Math.PI, Math.PI);
+    linearController.setTolerance(DriveConstants.driveTolerance.in(Meters));
+    omegaController.setTolerance(DriveConstants.rotateTolerance.in(Radians));
+
+    PheonixOdometryThread.getInstance().start();
   }
 
   @Override
   public void periodic() {
-    gyro.updateInputs(gyroData);
-    Logger.processInputs("Drive/Gryo", gyroData);
+    odometryLock.lock();
+    try {
+      gyro.updateInputs(gyroData);
+      Logger.processInputs("Drive/Gryo", gyroData);
 
-    for (Module m : swerveModules) {
-      m.periodic();
+      for (var m : swerveModules) {
+        m.periodic();
+      }
+    } finally {
+      odometryLock.unlock();
     }
-
-    currentChassisVelocity = ChassisVelocity.forwardKinematics(swerveModules);
-    moduleDisplacements =
-        Arrays.stream(swerveModules).map(Module::getDisplacement).toArray(Translation2d[]::new);
 
     RobotState.getInstance()
         .addOdometryObservation(
@@ -79,49 +95,85 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
   protected void applyState() {
     switch (getCurrentState()) {
       case TELEOP_DRIVE:
-        runChassisRelativeVelocity(
-            new ChassisVelocity(fieldOmega, fieldVelocity.rotateBy(gyroData.yaw)));
+        runChassisRelativeVelocity(getControllerSpeeds());
         break;
-      case TO_POSE:
+      case TO_POSE_PID:
+        pidToPose();
         break;
       default:
         break;
     }
   }
 
+  @Override
+  protected SystemState handleStateTransitions() {
+    var requested = getRequestedState();
+    switch (requested) {
+      case TO_POSE_PID:
+        linearController.reset();
+        omegaController.reset(
+            gyroData.yaw.getRadians(), getCurrentChassisVelocity().omega.in(RadiansPerSecond));
+
+        break;
+      default:
+        break;
+    }
+    return requested;
+  }
+
   public void setYaw(Angle yaw) {
     gyro.setYaw(yaw);
   }
 
-  private ChassisVelocity getCurrentChassisVelocity() {
+  private void pidToPose() {
+    var robotPose = RobotState.getInstance().getEstimatedRobotPose();
+    var robotToTarget = driveToPointPose.getTranslation().minus(robotPose.getTranslation());
+    var distance = robotToTarget.getNorm();
+    var heading = robotToTarget.getAngle();
+
+    var output = Math.min(linearController.calculate(distance, 0), DriveConstants.maxLinearSpeed);
+    var vx = output * heading.getCos();
+    var vy = output * heading.getSin();
+
+    var vw =
+        Math.min(
+            omegaController.calculate(
+                robotPose.getRotation().getRadians(), driveToPointPose.getRotation().getRadians()),
+            DriveConstants.maxRotationalSpeed);
+
+    if (linearController.atSetpoint() && omegaController.atSetpoint()) {
+      setState(SystemState.TELEOP_DRIVE);
+      runChassisRelativeVelocity(new ChassisVelocity());
+    } else {
+      var robotVelocity = new ChassisVelocity(RadiansPerSecond.of(vw), new Translation2d(vx, vy));
+      runChassisRelativeVelocity(robotVelocity);
+    }
+  }
+
+  private static final double CONTROLLER_DEADBAND = 0.1;
+
+  private ChassisVelocity getControllerSpeeds() {
+    final double sX = MathUtil.applyDeadband(controller.getLeftY(), CONTROLLER_DEADBAND);
+    final double sY = MathUtil.applyDeadband(controller.getLeftX(), CONTROLLER_DEADBAND);
+    double sW = MathUtil.applyDeadband(controller.getRightX(), CONTROLLER_DEADBAND);
+
+    sW = Math.copySign(sW * sW, sW); // heuristic?
+    final double sign = FieldConstants.isBlueAlliance() ? -1 : 1;
+    final double vX = sX * DriveConstants.maxLinearSpeed * sign;
+    final double vY = sY * DriveConstants.maxLinearSpeed * sign;
+    final double vW = sW * DriveConstants.maxRotationalSpeed;
+
+    return ChassisVelocity.fromFieldRelative(vX, vY, vW, gyroData.yaw);
+  }
+
+  public final ChassisVelocity getCurrentChassisVelocity() {
     return ChassisVelocity.forwardKinematics(swerveModules);
   }
 
   private void runChassisRelativeVelocity(ChassisVelocity velocity) {
     var moduleVelocities = velocity.inverseKinematics(swerveModules);
-    final double maxVelocity =
-        Arrays.stream(moduleVelocities).mapToDouble(v -> v.getSpeedMps()).max().orElse(0.0);
-
-    // Normalize module velocities to preserve direction when exceeding speed limits
-    // Accounts for max drive + max turn requested at same time
-    if (maxVelocity > DriveConstants.maxLinearSpeed) {
-      final double factor = DriveConstants.maxLinearSpeed / maxVelocity;
-      Arrays.stream(moduleVelocities).map(v -> v.scale(factor));
-    }
-
     for (int i = 0; i < 4; ++i) {
       swerveModules[i].runVelocity(moduleVelocities[i]);
     }
-  }
-
-  public void setTargetPose(Pose2d pose) {
-    this.targetPose = pose;
-
-    linearController.reset();
-  }
-
-  public void setFieldRelativeVelocity(Translation2d velocity, AngularVelocity omega) {
-    this.fieldVelocity = velocity;
-    this.fieldOmega = omega;
   }
 }

@@ -40,13 +40,18 @@ public class SwerveDynamics {
                   {0, 1, DriveConstants.modulePositions[3].getX()},
                 })
             .pseudoInverse();
-    private static SimpleMatrix moduleVelocityMatrix = new SimpleMatrix(8, 1);
 
     public ChassisVelocity() {}
 
     public ChassisVelocity(AngularVelocity omega, Translation2d v) {
       this.omega = omega;
       this.velocityVector = v;
+    }
+
+    public static ChassisVelocity fromFieldRelative(
+        double vx, double vy, double vw, Rotation2d robotYaw) {
+      var v = new Translation2d(vx, vy).rotateBy(robotYaw.unaryMinus());
+      return new ChassisVelocity(RadiansPerSecond.of(vw), v);
     }
 
     /* Forward kinematecs
@@ -60,6 +65,7 @@ public class SwerveDynamics {
      *  x = chassis velocity vector (3, 1)
      */
     public static ChassisVelocity forwardKinematics(Module[] modules) {
+      SimpleMatrix moduleVelocityMatrix = new SimpleMatrix(8, 1);
       for (int i = 0; i < 4; ++i) {
         final Translation2d vel = modules[i].getVelocity();
         moduleVelocityMatrix.setColumn(0, i * 2, new double[] {vel.getX(), vel.getY()});
@@ -77,14 +83,21 @@ public class SwerveDynamics {
      */
     public ModuleVelocity[] inverseKinematics(Module[] modules) {
       var mvs = new ModuleVelocity[4];
+      double mxv = 0.0;
 
       for (int i = 0; i < 4; ++i) {
-        final Translation2d chassisPos = modules[i].getChassisPosition();
-        final double radiusMeters = chassisPos.getNorm();
-        final double rotationalVelMps = omega.in(RadiansPerSecond) * radiusMeters;
+        final Translation2d radius = modules[i].getChassisPosition();
+        double omegaRad = omega.in(RadiansPerSecond);
         Translation2d rotationVector =
-            VectorUtil.tangentUnitVector(chassisPos).times(rotationalVelMps);
+            new Translation2d(omegaRad * -radius.getY(), omegaRad * radius.getX());
         mvs[i] = new ModuleVelocity(this.velocityVector.plus(rotationVector));
+        mxv = Math.max(mxv, mvs[i].getSpeedMps());
+      }
+
+      // Normalize module velocities to preserve direction when exceeding speed limits
+      if (mxv > DriveConstants.maxLinearSpeed) {
+        final double factor = DriveConstants.maxLinearSpeed / mxv;
+        for (int i = 0; i < 4; ++i) mvs[i] = mvs[i].scale(factor);
       }
 
       return mvs;
@@ -120,22 +133,16 @@ public class SwerveDynamics {
     }
 
     public void optimize(Rotation2d heading) {
-      closestAngle(heading);
-      cosineOptimize(heading);
-    }
-
-    // Reduces speed opposite to rotation vector
-    private void cosineOptimize(Rotation2d heading) {
-      this.velocity = velocity.times(velocity.getAngle().minus(heading).getCos());
-    }
-
-    // Prevents uneccessary heading changes > 90°, takes opposite angle
-    private void closestAngle(Rotation2d heading) {
-      double angleError = MathUtil.angleModulus(velocity.getAngle().minus(heading).getRadians());
-      if (Math.abs(angleError) > Math.PI / 2) {
-        this.velocity =
-            new Translation2d(-velocity.getNorm(), velocity.getAngle().plus(Rotation2d.k180deg));
+      Rotation2d error =
+          Rotation2d.fromRadians(
+              MathUtil.angleModulus(velocity.getAngle().minus(heading).getRadians()));
+      // Prevents uneccessary heading changes > 90°, takes opposite angle
+      if (Math.abs(error.getRadians()) > Math.PI / 2) {
+        velocity = velocity.unaryMinus();
+        error = error.plus(Rotation2d.k180deg);
       }
+      // Reduces speed opposite to rotation vector
+      velocity = velocity.times(error.getCos());
     }
   }
 

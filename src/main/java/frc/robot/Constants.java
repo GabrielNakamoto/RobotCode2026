@@ -1,8 +1,23 @@
 package frc.robot;
 
+import static edu.wpi.first.units.Units.*;
+
+import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.Mass;
 import edu.wpi.first.wpilibj.RobotBase;
 
 public class Constants {
+  public record RobotConfig(
+      Mass mass,
+      Distance bumperWidth,
+      Distance bumperLength,
+      Distance trackWidth,
+      Distance trackLength) {}
+
+  public static final RobotConfig config =
+      new RobotConfig(
+          Kilograms.of(0.0), Inches.of(0.0), Inches.of(0.0), Inches.of(0.0), Inches.of(0.0));
+
   public static Mode getMode() {
     return RobotBase.isReal() ? Mode.REAL : Mode.SIM;
   }

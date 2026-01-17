@@ -32,8 +32,8 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
   protected final SwerveModuleConstants<
           TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration>
       constants;
-  protected final TalonFX driveMotor;
-  protected final TalonFX turnMotor;
+  protected final TalonFX driveTalon;
+  protected final TalonFX turnTalon;
   protected final CANcoder cancoder;
 
   protected final StatusSignal<Angle> drivePosition;
@@ -61,8 +61,8 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
       SwerveModuleConstants<TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration>
           constants) {
     this.constants = constants;
-    driveMotor = new TalonFX(constants.DriveMotorId);
-    turnMotor = new TalonFX(constants.SteerMotorId);
+    driveTalon = new TalonFX(constants.DriveMotorId);
+    turnTalon = new TalonFX(constants.SteerMotorId);
     cancoder = new CANcoder(constants.EncoderId);
 
     var driveConfig = constants.DriveMotorInitialConfigs;
@@ -76,8 +76,8 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
     driveConfig.CurrentLimits.StatorCurrentLimit = constants.SlipCurrent;
     driveConfig.CurrentLimits.StatorCurrentLimitEnable = true;
 
-    driveMotor.getConfigurator().apply(driveConfig);
-    driveMotor.setPosition(0.0);
+    driveTalon.getConfigurator().apply(driveConfig);
+    driveTalon.setPosition(0.0);
 
     var turnConfig = constants.SteerMotorInitialConfigs;
     turnConfig.MotorOutput.NeutralMode = NeutralModeValue.Brake;
@@ -98,7 +98,7 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
     turnConfig.Feedback.RotorToSensorRatio = constants.SteerMotorGearRatio;
     turnConfig.ClosedLoopGeneral.ContinuousWrap = true;
 
-    turnMotor.getConfigurator().apply(turnConfig);
+    turnTalon.getConfigurator().apply(turnConfig);
 
     // Motion magic profile gains
     var motionMagicConfigs = turnConfig.MotionMagic;
@@ -117,10 +117,10 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
             : SensorDirectionValue.CounterClockwise_Positive;
     cancoder.getConfigurator().apply(encoderConfig);
 
-    driveVelocity = driveMotor.getVelocity();
-    drivePosition = driveMotor.getPosition();
+    driveVelocity = driveTalon.getVelocity();
+    drivePosition = driveTalon.getPosition();
     turnPositionAbsolute = cancoder.getAbsolutePosition();
-    turnVelocity = turnMotor.getVelocity();
+    turnVelocity = turnTalon.getVelocity();
   }
 
   @Override
@@ -146,14 +146,14 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
         outputs.driveVelocity.in(MetersPerSecond) / DriveConstants.wheelRadius.in(Meters);
 
     // Velocity control for drive
-    driveMotor.setControl(
+    driveTalon.setControl(
         switch (constants.DriveMotorClosedLoopOutput) {
           case Voltage -> velocityVoltageRequest.withVelocity(driveWheelVelocityMps);
           case TorqueCurrentFOC -> velocityTorqueRequest.withVelocity(driveWheelVelocityMps);
         });
 
     // Position control for steer
-    turnMotor.setControl(
+    turnTalon.setControl(
         switch (constants.SteerMotorClosedLoopOutput) {
           case Voltage ->
               DriveConstants.motionMagicSteerControl

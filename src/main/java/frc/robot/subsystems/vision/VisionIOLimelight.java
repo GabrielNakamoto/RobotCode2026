@@ -4,8 +4,10 @@ import static edu.wpi.first.units.Units.*;
 
 import edu.wpi.first.networktables.DoubleArraySubscriber;
 import edu.wpi.first.networktables.DoubleSubscriber;
+import edu.wpi.first.networktables.IntegerPublisher;
 import edu.wpi.first.networktables.IntegerSubscriber;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 
 public class VisionIOLimelight implements VisionIO {
@@ -20,23 +22,31 @@ public class VisionIOLimelight implements VisionIO {
   private final DoubleSubscriber clSubscriber;
 
   private final DoubleArraySubscriber megatagSubscriber;
-  private final int index;
+
+  private final IntegerPublisher throttlePublisher;
+  private boolean throttling;
 
   public VisionIOLimelight(int index) {
-    this.index = index;
-
     var table = NetworkTableInstance.getDefault().getTable(VisionConstants.cameraNames[index]);
     txSubscriber = table.getDoubleTopic("tx").subscribe(0.0);
     tySubscriber = table.getDoubleTopic("ty").subscribe(0.0);
     tidSubscriber = table.getIntegerTopic("tid").subscribe(0);
     tlSubscriber = table.getDoubleTopic("tl").subscribe(0.0);
     clSubscriber = table.getDoubleTopic("cl").subscribe(0.0);
+    throttlePublisher = table.getIntegerTopic("throttle_set").publish();
+    throttlePublisher.set(200);
+    throttling = true;
 
     megatagSubscriber = table.getDoubleArrayTopic("botpose_orb_wpiblue").subscribe(new double[] {});
   }
 
   @Override
   public void updateInputs(VisionIOInputs inputs) {
+    if ((DriverStation.isEnabled() || DriverStation.isDSAttached()) && throttling) {
+      throttling = false;
+      throttlePublisher.set(0);
+    }
+
     inputs.tx = txSubscriber.get();
     inputs.ty = tySubscriber.get();
     inputs.tid = (int) tidSubscriber.get();

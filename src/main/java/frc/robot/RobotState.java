@@ -4,6 +4,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import java.util.Arrays;
+import org.littletonrobotics.junction.Logger;
 
 public class RobotState {
   private static RobotState instance;
@@ -27,6 +28,7 @@ public class RobotState {
         new Pose2d(odometryPose.getTranslation().plus(robotDisplacement), observation.gyroYaw);
 
     odometryPose = poseEstimate;
+    Logger.recordOutput("RobotState/odometryPose", odometryPose);
   }
 
   // TODO: implement

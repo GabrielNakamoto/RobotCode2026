@@ -1,20 +1,25 @@
 package frc.robot.subsystems.vision;
 
 import edu.wpi.first.math.geometry.*;
+import edu.wpi.first.units.measure.Angle;
 import frc.robot.FieldConstants;
 import frc.robot.RobotState;
 import frc.robot.RobotState.*;
 import frc.robot.StateSubsystem;
+import java.util.function.Consumer;
+import org.littletonrobotics.junction.Logger;
 
 public class Vision extends StateSubsystem<frc.robot.subsystems.vision.Vision.SystemState> {
   public enum SystemState {
-    ALL_TAGS,
+    SINGLE_TAG_2D,
   }
 
   private VisionIO[] cameras;
   private VisionIOInputsAutoLogged[] inputs;
+  private final Consumer<Angle> setYaw;
 
-  public Vision(VisionIO[] cameras) {
+  public Vision(VisionIO[] cameras, Consumer<Angle> setYaw) {
+    this.setYaw = setYaw;
     this.cameras = cameras;
     this.inputs = new VisionIOInputsAutoLogged[cameras.length];
   }
@@ -23,16 +28,21 @@ public class Vision extends StateSubsystem<frc.robot.subsystems.vision.Vision.Sy
   public void periodic() {
     for (int i = 0; i < cameras.length; ++i) {
       cameras[i].updateInputs(inputs[i]);
+      Logger.processInputs("Vision/camera" + i, inputs[i]);
     }
+
+    applyState();
   }
 
   @Override
   protected void applyState() {
     switch (getCurrentState()) {
-      case ALL_TAGS:
+      case SINGLE_TAG_2D:
         for (int i = 0; i < cameras.length; ++i) {
           final VisionIOInputsAutoLogged input = inputs[i];
           final Pose2d estimate = poseEstimate2d(input.tx, input.ty, input.tid, i);
+
+          if (input.update_yaw) setYaw.accept(input.megatagYaw);
           RobotState.getInstance()
               .addVisionObservation(new AprilTagObservation(input.timestamp, estimate));
         }

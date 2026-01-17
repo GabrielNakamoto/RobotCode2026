@@ -20,6 +20,10 @@ public interface ModuleIO {
     public boolean turnConnected = false;
     public Rotation2d absoluteTurnHeading = Rotation2d.kZero;
     public AngularVelocity turnVelocity = RadiansPerSecond.of(0.0);
+
+    public double[] odometryTimestamps = new double[] {};
+    public double[] odometryDrivePositionsRad = new double[] {};
+    public Rotation2d[] odometryTurnPositions = new Rotation2d[] {};
   }
 
   public static class ModuleIOOutputs {
@@ -28,8 +32,6 @@ public interface ModuleIO {
   }
 
   public default void updateInputs(ModuleIOInputs inputs) {}
-  ;
 
   public default void applyOutputs(ModuleIOOutputs outputs) {}
-  ;
 }
