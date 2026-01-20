@@ -88,6 +88,7 @@ public class SwerveDynamics {
       for (int i = 0; i < 4; ++i) {
         final Translation2d radius = modules[i].getChassisPosition();
         double omegaRad = omega.in(RadiansPerSecond);
+        // v = w x r
         Translation2d rotationVector =
             new Translation2d(omegaRad * -radius.getY(), omegaRad * radius.getX());
         mvs[i] = new ModuleVelocity(this.velocityVector.plus(rotationVector));
@@ -96,7 +97,7 @@ public class SwerveDynamics {
 
       // Normalize module velocities to preserve direction when exceeding speed limits
       final double factor = DriveConstants.maxLinearSpeed / mxv;
-      if (mxv > DriveConstants.maxLinearSpeed) {
+      if (mxv > DriveConstants.maxLinearSpeed && mxv > 1e-6) {
         for (int i = 0; i < 4; ++i) mvs[i] = mvs[i].scale(factor);
       }
       return mvs;
@@ -104,12 +105,17 @@ public class SwerveDynamics {
   }
 
   public static class ModuleVelocity {
+    // How to represent magntiude vs direction?
     private LinearVelocity magnitude;
     private Rotation2d heading;
 
     public ModuleVelocity(double magnitudeMeters, Rotation2d heading) {
       this.magnitude = MetersPerSecond.of(magnitudeMeters);
       this.heading = heading;
+    }
+
+    public Translation2d toTranslation2d() {
+      return new Translation2d(magnitude.in(MetersPerSecond), heading);
     }
 
     public ModuleVelocity(Translation2d vector) {

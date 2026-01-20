@@ -54,7 +54,9 @@ public class Module {
   }
 
   public final Translation2d getVelocity() {
-    return new Translation2d(inputs.driveVelocity.in(RadiansPerSecond), inputs.absoluteTurnHeading);
+    // v = w * r
+    double vmps = inputs.driveVelocity.in(RadiansPerSecond) * getChassisPosition().getNorm();
+    return new Translation2d(vmps, inputs.absoluteTurnHeading);
   }
 
   public void setMode(ModuleIOOutputMode mode) {

@@ -15,7 +15,7 @@ public class DriveConstants {
   ;
 
   public static final PIDGains driveGains = new PIDGains(0.5, 0.0, 0.0);
-  public static final PIDGains rotGains = new PIDGains(10.0, 0.0, 0.0);
+  public static final PIDGains rotGains = new PIDGains(14.0, 0.0, 0.0);
   public static final double maxLinearSpeed = 6.7;
   public static final double maxOmega = 10.0;
   public static final double maxOmegaAccel = 15.0;
@@ -30,10 +30,10 @@ public class DriveConstants {
   private static final double trackWidthMeters = Constants.config.trackWidth().in(Meters);
   private static final double trackLengthMeters = Constants.config.trackLength().in(Meters);
   public static final Translation2d[] modulePositions = {
-    new Translation2d(trackLengthMeters / 2, -trackWidthMeters / 2),
     new Translation2d(trackLengthMeters / 2, trackWidthMeters / 2),
-    new Translation2d(-trackLengthMeters / 2, -trackWidthMeters / 2),
+    new Translation2d(trackLengthMeters / 2, -trackWidthMeters / 2),
     new Translation2d(-trackLengthMeters / 2, trackWidthMeters / 2),
+    new Translation2d(-trackLengthMeters / 2, -trackWidthMeters / 2),
   };
 
   // Feed forward

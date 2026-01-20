@@ -6,7 +6,6 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj.XboxController;
@@ -14,7 +13,8 @@ import frc.robot.FieldConstants;
 import frc.robot.RobotState;
 import frc.robot.RobotState.*;
 import frc.robot.StateSubsystem;
-import frc.robot.SwerveDynamics.ChassisVelocity;
+import frc.robot.SwerveDynamics.*;
+import java.util.Arrays;
 import org.littletonrobotics.junction.Logger;
 
 public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.SystemState> {
@@ -64,9 +64,7 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     linearController.setTolerance(DriveConstants.driveTolerance.in(Meters));
     omegaController.setTolerance(DriveConstants.rotateTolerance.in(Radians));
 
-    // setState(SystemState.TEST);
-    setState(SystemState.TO_POSE_PID);
-    driveToPointPose = new Pose2d(2, 3, Rotation2d.kZero);
+    setState(SystemState.TEST);
   }
 
   @Override
@@ -81,6 +79,9 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 
     statePeriodic();
 
+    var robotVelocity = ChassisVelocity.forwardKinematics(swerveModules);
+    Logger.recordOutput("Drive/forwardK/velocity", robotVelocity.velocityVector);
+    Logger.recordOutput("Drive/forwardK/omega", robotVelocity.omega);
     /*
       RobotState.getInstance()
           .addOdometryObservation(
@@ -103,7 +104,7 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
         break;
       case TEST:
         runChassisRelativeVelocity(
-            new ChassisVelocity(RadiansPerSecond.zero(), new Translation2d(0.5, 0.0)));
+            ChassisVelocity.fromFieldRelative(-0.1, -0.1, 0.3, gyroData.yaw));
         break;
       default:
         break;
@@ -116,8 +117,9 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     switch (requested) {
       case TO_POSE_PID:
         linearController.reset();
-        omegaController.reset(
-            gyroData.yaw.getRadians(), getCurrentChassisVelocity().omega.in(RadiansPerSecond));
+        omegaController.reset(gyroData.yaw.getRadians(), gyroData.yawVelocity.in(RadiansPerSecond));
+        // omegaController.reset(
+        // gyroData.yaw.getRadians(), getCurrentChassisVelocity().omega.in(RadiansPerSecond));
         break;
       default:
         break;
@@ -136,9 +138,8 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     var robotToTarget = driveToPointPose.getTranslation().minus(robotPose.getTranslation());
     double distance = robotPose.getTranslation().getDistance(driveToPointPose.getTranslation());
     var output = Math.min(linearController.calculate(0, distance), DriveConstants.maxLinearSpeed);
-    var heading = robotToTarget.getAngle();
 
-    var vw =
+    double vw =
         omegaController.calculate(
             robotPose.getRotation().getRadians(), driveToPointPose.getRotation().getRadians());
 
@@ -152,10 +153,10 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
       var robotVelocity = new ChassisVelocity(RadiansPerSecond.of(vw), linearVector);
 
       Logger.recordOutput("pidToPose/pidLinearOutput", output);
+      Logger.recordOutput("pidToPose/pidOmegaOutput", vw);
       Logger.recordOutput("pidToPose/robotToTarget", robotToTarget);
       Logger.recordOutput("pidToPose/distance", distance);
       Logger.recordOutput("pidToPose/driveToPointPose", driveToPointPose);
-      Logger.recordOutput("pidToPose/outputOmega", vw);
       Logger.recordOutput("pidToPose/outputLinear", linearVector);
 
       runChassisRelativeVelocity(robotVelocity);
@@ -183,8 +184,12 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
   }
 
   private void runChassisRelativeVelocity(ChassisVelocity velocity) {
-    Logger.recordOutput("driveVelocity/translationVector", velocity.velocityVector);
     var moduleVelocities = velocity.inverseKinematics(swerveModules);
+    Logger.recordOutput(
+        "Drive/swerveVelocitiesRequested",
+        Arrays.stream(moduleVelocities)
+            .map(ModuleVelocity::toTranslation2d)
+            .toArray(Translation2d[]::new));
     for (int i = 0; i < 4; ++i) {
       swerveModules[i].runVelocity(moduleVelocities[i]);
     }
