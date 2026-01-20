@@ -20,7 +20,7 @@ public abstract class StateSubsystem<E extends Enum<E>> extends SubsystemBase {
     this.requestedState = state;
   }
 
-  protected final void updateState() {
+  protected final void statePeriodic() {
     this.currentState = handleStateTransitions();
     applyState();
   }

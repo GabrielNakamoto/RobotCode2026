@@ -28,7 +28,7 @@ public class RobotContainer {
       case REAL:
         drive =
             new Drive(
-                new GyroIOPigeon2() {},
+                new GyroIO() {},
                 new ModuleIO() {},
                 new ModuleIO() {},
                 new ModuleIO() {},
@@ -40,6 +40,7 @@ public class RobotContainer {
             new SwerveDriveSimulation(
                 DriveConstants.mapleSimConfig, new Pose2d(3, 3, Rotation2d.kZero));
         SimulatedArena.getInstance().addDriveTrainSimulation(swerveSim);
+        RobotState.getInstance().addSimulatedPoseCallback(swerveSim::getSimulatedDriveTrainPose);
         var simMods = swerveSim.getModules();
         drive =
             new Drive(

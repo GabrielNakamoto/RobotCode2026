@@ -16,8 +16,8 @@ public class DriveConstants {
 
   public static final TrapezoidProfile.Constraints rotConstraints =
       new TrapezoidProfile.Constraints(0.0, 0.0);
-  public static final PIDGains driveGains = new PIDGains(0.0, 0.0, 0.0);
-  public static final PIDGains rotGains = new PIDGains(0.0, 0.0, 0.0);
+  public static final PIDGains driveGains = new PIDGains(0.1, 0.0, 0.0);
+  public static final PIDGains rotGains = new PIDGains(10.0, 0.0, 0.0);
   public static final double maxLinearSpeed = 6.7;
   public static final double maxRotationalSpeed = 12.0;
   public static final Distance wheelRadius = Inches.of(2.6);

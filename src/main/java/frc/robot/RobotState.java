@@ -4,6 +4,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import java.util.Arrays;
+import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 public class RobotState {
@@ -18,6 +19,7 @@ public class RobotState {
   }
 
   private Pose2d odometryPose = Pose2d.kZero;
+  private Supplier<Pose2d> simulatedPoseCallback = null;
 
   public void addOdometryObservation(OdometryObservation observation) {
     final var robotDisplacement =
@@ -31,11 +33,19 @@ public class RobotState {
     Logger.recordOutput("RobotState/odometryPose", odometryPose);
   }
 
+  public void addSimulatedPoseCallback(Supplier<Pose2d> simulatedPoseCallback) {
+    this.simulatedPoseCallback = simulatedPoseCallback;
+  }
+
   // TODO: implement
   public void addVisionObservation(AprilTagObservation observation) {}
 
   public final Pose2d getOdometryPose() {
     return odometryPose;
+  }
+
+  public final Pose2d getSimulatedPose() {
+    return simulatedPoseCallback.get();
   }
 
   // TODO: add observation functions for vision and drive odometry

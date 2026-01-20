@@ -6,12 +6,14 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.XboxController;
 import frc.robot.FieldConstants;
 import frc.robot.RobotState;
+import frc.robot.RobotState.*;
 import frc.robot.StateSubsystem;
 import frc.robot.SwerveDynamics.ChassisVelocity;
 import frc.robot.subsystems.drive.ModuleIO.ModuleIOOutputMode;
@@ -64,17 +66,22 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     linearController.setTolerance(DriveConstants.driveTolerance.in(Meters));
     omegaController.setTolerance(DriveConstants.rotateTolerance.in(Radians));
 
-    setState(SystemState.TEST);
+    // setState(SystemState.TEST);
+    setState(SystemState.TO_POSE_PID);
+    driveToPointPose = new Pose2d(2, 3, Rotation2d.kZero);
   }
 
   @Override
   public void periodic() {
     gyro.updateInputs(gyroData);
     Logger.processInputs("Drive/Gryo", gyroData);
+    Logger.recordOutput("Drive/systemState", getCurrentState());
 
     for (var m : swerveModules) {
       m.periodic();
     }
+
+    statePeriodic();
 
     if (DriverStation.isDisabled()) {
       for (var m : swerveModules) {
@@ -91,8 +98,6 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     for (var m : swerveModules) {
       m.periodicAfter();
     }
-
-    updateState();
   }
 
   @Override
@@ -121,7 +126,6 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
         linearController.reset();
         omegaController.reset(
             gyroData.yaw.getRadians(), getCurrentChassisVelocity().omega.in(RadiansPerSecond));
-
         break;
       default:
         break;
@@ -134,7 +138,8 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
   }
 
   private void pidToPose() {
-    var robotPose = RobotState.getInstance().getEstimatedRobotPose();
+    // var robotPose = RobotState.getInstance().getEstimatedRobotPose();
+    var robotPose = RobotState.getInstance().getSimulatedPose();
     var robotToTarget = driveToPointPose.getTranslation().minus(robotPose.getTranslation());
     var distance = robotToTarget.getNorm();
     var heading = robotToTarget.getAngle();
@@ -154,6 +159,8 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
       runChassisRelativeVelocity(new ChassisVelocity());
     } else {
       var robotVelocity = new ChassisVelocity(RadiansPerSecond.of(vw), new Translation2d(vx, vy));
+      Logger.recordOutput("PidToPose/outputOmega", vw);
+      Logger.recordOutput("PidToPose/outputLinear", new Translation2d(vx, vy));
       runChassisRelativeVelocity(robotVelocity);
     }
   }
