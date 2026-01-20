@@ -14,26 +14,31 @@ public class DriveConstants {
   public static record PIDGains(double kp, double ki, double kd) {}
   ;
 
-  public static final double simulatedDriveGearRatio = 0.0;
-  public static final double simulatedTurnGearRatio = 0.0;
-
-  public static final Distance bumperWidthY = Inches.of(0.0);
-  public static final Distance bumperLengthX = Inches.of(0.0);
   public static final TrapezoidProfile.Constraints rotConstraints =
       new TrapezoidProfile.Constraints(0.0, 0.0);
   public static final PIDGains driveGains = new PIDGains(0.0, 0.0, 0.0);
   public static final PIDGains rotGains = new PIDGains(0.0, 0.0, 0.0);
-  public static final double maxLinearSpeed = 0.0;
-  public static final double maxRotationalSpeed = 0.0;
-  public static final Distance wheelRadius = Meters.of(0.0);
+  public static final double maxLinearSpeed = 6.7;
+  public static final double maxRotationalSpeed = 12.0;
+  public static final Distance wheelRadius = Inches.of(2.6);
   public static final boolean motionMagicSteerControl = false;
   public static final Distance driveTolerance = Meters.of(0.0);
   public static final Angle rotateTolerance = Degrees.of(0.0);
 
+  private static final double trackWidthMeters = Constants.config.trackWidth().in(Meters);
+  private static final double trackLengthMeters = Constants.config.trackLength().in(Meters);
   public static final Translation2d[] modulePositions = {
-    new Translation2d(), new Translation2d(), new Translation2d(), new Translation2d(),
+    new Translation2d(trackLengthMeters / 2, -trackWidthMeters / 2),
+    new Translation2d(trackLengthMeters / 2, trackWidthMeters / 2),
+    new Translation2d(-trackLengthMeters / 2, -trackWidthMeters / 2),
+    new Translation2d(-trackLengthMeters / 2, trackWidthMeters / 2),
   };
 
+  // Feed forward
+  public static final double drivekS = 5.0;
+  public static final double drivekV = 0.0;
+
+  // Sim specific
   public static final DriveTrainSimulationConfig mapleSimConfig =
       DriveTrainSimulationConfig.Default()
           .withRobotMass(Constants.config.mass())

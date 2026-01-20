@@ -1,9 +1,9 @@
 package frc.robot.subsystems.drive;
 
 import static edu.wpi.first.units.Units.Meters;
-import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.Radians;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
+import static edu.wpi.first.units.Units.RotationsPerSecond;
 
 import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
@@ -47,8 +47,10 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
   protected VelocityVoltage velocityVoltageRequest = new VelocityVoltage(0.0);
 
   // Steer control signals (position control)
-  protected PositionTorqueCurrentFOC positionTorqueRequest = new PositionTorqueCurrentFOC(0.0);
-  protected VelocityTorqueCurrentFOC velocityTorqueRequest = new VelocityTorqueCurrentFOC(0.0);
+  protected PositionTorqueCurrentFOC positionTorqueRequest =
+      new PositionTorqueCurrentFOC(0.0).withUpdateFreqHz(0.0);
+  protected VelocityTorqueCurrentFOC velocityTorqueRequest =
+      new VelocityTorqueCurrentFOC(0.0).withUpdateFreqHz(0.0);
   // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html
   protected MotionMagicVoltage positionMagicVoltageRequest = new MotionMagicVoltage(0.0);
   protected MotionMagicTorqueCurrentFOC positionMagicTorqueRequest =
@@ -130,7 +132,7 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
 
     inputs.driveConnected = driveStatusDebouncer.calculate(driveStatus.isOK());
     inputs.driveVelocity =
-        MetersPerSecond.of(
+        RadiansPerSecond.of(
             driveVelocity.getValue().in(RadiansPerSecond) / constants.DriveMotorGearRatio);
     inputs.drivePosition =
         Meters.of(drivePosition.getValue().in(Radians) / constants.DriveMotorGearRatio);
@@ -142,14 +144,20 @@ public abstract class ModuleIOTalonFX implements ModuleIO {
 
   @Override
   public void applyOutputs(ModuleIOOutputs outputs) {
-    final double driveWheelVelocityMps =
-        outputs.driveVelocity.in(MetersPerSecond) / DriveConstants.wheelRadius.in(Meters);
+    final double driveVelocity =
+        outputs.driveVelocity.in(RotationsPerSecond) * constants.DriveMotorGearRatio;
 
     // Velocity control for drive
     driveTalon.setControl(
         switch (constants.DriveMotorClosedLoopOutput) {
-          case Voltage -> velocityVoltageRequest.withVelocity(driveWheelVelocityMps);
-          case TorqueCurrentFOC -> velocityTorqueRequest.withVelocity(driveWheelVelocityMps);
+          case Voltage ->
+              velocityVoltageRequest
+                  .withVelocity(driveVelocity)
+                  .withFeedForward(outputs.feedforward);
+          case TorqueCurrentFOC ->
+              velocityTorqueRequest
+                  .withVelocity(driveVelocity)
+                  .withFeedForward(outputs.feedforward);
         });
 
     // Position control for steer

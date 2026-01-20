@@ -123,3 +123,6 @@ task(replayWatch, type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
 }
 
+project.afterEvaluate {
+	compileJava.dependsOn 'spotlessApply'
+}

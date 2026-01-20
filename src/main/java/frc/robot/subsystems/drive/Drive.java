@@ -8,16 +8,13 @@ import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.Angle;
-import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.XboxController;
 import frc.robot.FieldConstants;
-import frc.robot.PheonixOdometryThread;
 import frc.robot.RobotState;
-import frc.robot.RobotState.OdometryObservation;
 import frc.robot.StateSubsystem;
 import frc.robot.SwerveDynamics.ChassisVelocity;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import frc.robot.subsystems.drive.ModuleIO.ModuleIOOutputMode;
 import org.littletonrobotics.junction.Logger;
 
 public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.SystemState> {
@@ -25,9 +22,9 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     IDLE,
     TELEOP_DRIVE,
     TO_POSE_PID,
+    TEST
   };
 
-  public static Lock odometryLock = new ReentrantLock();
   private final Module[] swerveModules = new Module[4];
   private final GyroIO gyro;
 
@@ -67,26 +64,33 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     linearController.setTolerance(DriveConstants.driveTolerance.in(Meters));
     omegaController.setTolerance(DriveConstants.rotateTolerance.in(Radians));
 
-    PheonixOdometryThread.getInstance().start();
+    setState(SystemState.TEST);
   }
 
   @Override
   public void periodic() {
-    odometryLock.lock();
-    try {
-      gyro.updateInputs(gyroData);
-      Logger.processInputs("Drive/Gryo", gyroData);
+    gyro.updateInputs(gyroData);
+    Logger.processInputs("Drive/Gryo", gyroData);
 
-      for (var m : swerveModules) {
-        m.periodic();
-      }
-    } finally {
-      odometryLock.unlock();
+    for (var m : swerveModules) {
+      m.periodic();
     }
 
-    RobotState.getInstance()
-        .addOdometryObservation(
-            new OdometryObservation(Timer.getFPGATimestamp(), gyroData.yaw, moduleDisplacements));
+    if (DriverStation.isDisabled()) {
+      for (var m : swerveModules) {
+        m.setMode(ModuleIOOutputMode.BRAKE);
+      }
+    }
+
+    /*
+      RobotState.getInstance()
+          .addOdometryObservation(
+              new OdometryObservation(Timer.getFPGATimestamp(), gyroData.yaw, moduleDisplacements));
+    */
+
+    for (var m : swerveModules) {
+      m.periodicAfter();
+    }
 
     updateState();
   }
@@ -99,6 +103,10 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
         break;
       case TO_POSE_PID:
         pidToPose();
+        break;
+      case TEST:
+        runChassisRelativeVelocity(
+            new ChassisVelocity(RadiansPerSecond.zero(), new Translation2d(0.5, 0.0)));
         break;
       default:
         break;

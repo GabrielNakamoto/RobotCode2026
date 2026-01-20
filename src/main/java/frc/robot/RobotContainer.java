@@ -9,13 +9,11 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.subsystems.drive.Drive;
-import frc.robot.subsystems.drive.DriveConstants;
-import frc.robot.subsystems.drive.GyroIO;
-import frc.robot.subsystems.drive.GyroIOPigeon2;
-import frc.robot.subsystems.drive.ModuleIO;
+import frc.robot.subsystems.drive.*;
 import java.util.function.DoubleSupplier;
+import org.ironmaple.simulation.SimulatedArena;
 import org.ironmaple.simulation.drivesims.SwerveDriveSimulation;
+import org.littletonrobotics.junction.Logger;
 
 public class RobotContainer {
   public final Drive drive;
@@ -41,14 +39,15 @@ public class RobotContainer {
         swerveSim =
             new SwerveDriveSimulation(
                 DriveConstants.mapleSimConfig, new Pose2d(3, 3, Rotation2d.kZero));
+        SimulatedArena.getInstance().addDriveTrainSimulation(swerveSim);
         var simMods = swerveSim.getModules();
         drive =
             new Drive(
-                new GyroIO() {},
-                new ModuleIO() {},
-                new ModuleIO() {},
-                new ModuleIO() {},
-                new ModuleIO() {},
+                new GyroIOSim(swerveSim.getGyroSimulation()),
+                new ModuleIOGeneralSim(simMods[0]),
+                new ModuleIOGeneralSim(simMods[1]),
+                new ModuleIOGeneralSim(simMods[2]),
+                new ModuleIOGeneralSim(simMods[3]),
                 driveController);
         break;
       default:
@@ -70,5 +69,9 @@ public class RobotContainer {
 
   public Command getAutonomousCommand() {
     return Commands.print("No autonomous command configured");
+  }
+
+  public void displaySimField() {
+    Logger.recordOutput("FieldSimulation/robotPose", swerveSim.getSimulatedDriveTrainPose());
   }
 }

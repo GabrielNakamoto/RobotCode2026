@@ -16,7 +16,7 @@ public class Constants {
 
   public static final RobotConfig config =
       new RobotConfig(
-          Kilograms.of(0.0), Inches.of(0.0), Inches.of(0.0), Inches.of(0.0), Inches.of(0.0));
+          Kilograms.of(65.0), Inches.of(37.0), Inches.of(34.0), Inches.of(23), Inches.of(23));
 
   public static Mode getMode() {
     return RobotBase.isReal() ? Mode.REAL : Mode.SIM;

@@ -7,7 +7,6 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Distance;
-import edu.wpi.first.units.measure.LinearVelocity;
 import frc.robot.subsystems.drive.DriveConstants;
 import frc.robot.subsystems.drive.Module;
 import org.ejml.simple.SimpleMatrix;
@@ -95,11 +94,10 @@ public class SwerveDynamics {
       }
 
       // Normalize module velocities to preserve direction when exceeding speed limits
+      final double factor = DriveConstants.maxLinearSpeed / mxv;
       if (mxv > DriveConstants.maxLinearSpeed) {
-        final double factor = DriveConstants.maxLinearSpeed / mxv;
         for (int i = 0; i < 4; ++i) mvs[i] = mvs[i].scale(factor);
       }
-
       return mvs;
     }
   }
@@ -120,12 +118,12 @@ public class SwerveDynamics {
       return this;
     }
 
-    public final Rotation2d getHeading() {
-      return velocity.getAngle();
+    public final Translation2d toTranslation2d() {
+      return this.velocity;
     }
 
-    public final LinearVelocity magnitude() {
-      return MetersPerSecond.of(velocity.getNorm());
+    public final Rotation2d getHeading() {
+      return velocity.getAngle();
     }
 
     public final double getSpeedMps() {
