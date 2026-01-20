@@ -6,6 +6,7 @@ import edu.wpi.first.math.controller.SimpleMotorFeedforward;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.wpilibj.DriverStation;
 import frc.robot.SwerveDynamics;
 import frc.robot.SwerveDynamics.ModuleVelocity;
 import frc.robot.subsystems.drive.ModuleIO.ModuleIOOutputMode;
@@ -19,7 +20,8 @@ public class Module {
   private ModuleIOOutputs outputs = new ModuleIOOutputs();
   private final int index;
 
-  private final SimpleMotorFeedforward ffModel;
+  private final SimpleMotorFeedforward ffModel =
+      new SimpleMotorFeedforward(DriveConstants.drivekS, DriveConstants.drivekV);
 
   private Distance lastPos = Meters.of(0.0);
   private Rotation2d lastHeading = Rotation2d.kZero;
@@ -28,7 +30,6 @@ public class Module {
     this.io = io;
     this.index = index;
     this.chassisPosition = DriveConstants.modulePositions[index];
-    this.ffModel = new SimpleMotorFeedforward(DriveConstants.drivekS, DriveConstants.drivekV);
   }
 
   public final Translation2d getChassisPosition() {
@@ -62,12 +63,11 @@ public class Module {
   }
 
   public void runVelocity(ModuleVelocity velocity) {
-    Logger.recordOutput("Module" + index + "/unoptimizedVelocity", velocity.toTranslation2d());
     velocity.optimize(inputs.absoluteTurnHeading);
-    Logger.recordOutput("Module" + index + "/optimizedVelocity", velocity.toTranslation2d());
 
     // w = v / r
-    double driveVelocityRps = velocity.getSpeedMps() / DriveConstants.wheelRadius.in(Meters);
+    double driveVelocityRps =
+        velocity.magnitude().in(MetersPerSecond) / DriveConstants.wheelRadius.in(Meters);
     Logger.recordOutput("Module" + index + "/outputVelocityRps", driveVelocityRps);
 
     outputs.turnHeading = velocity.getHeading();
@@ -82,6 +82,9 @@ public class Module {
   }
 
   public void periodicAfter() {
+    if (DriverStation.isDisabled()) {
+      outputs.mode = ModuleIOOutputMode.BRAKE;
+    }
     io.applyOutputs(outputs);
   }
 }

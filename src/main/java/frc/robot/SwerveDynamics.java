@@ -7,6 +7,7 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
 import frc.robot.subsystems.drive.DriveConstants;
 import frc.robot.subsystems.drive.Module;
 import org.ejml.simple.SimpleMatrix;
@@ -90,7 +91,7 @@ public class SwerveDynamics {
         Translation2d rotationVector =
             new Translation2d(omegaRad * -radius.getY(), omegaRad * radius.getX());
         mvs[i] = new ModuleVelocity(this.velocityVector.plus(rotationVector));
-        mxv = Math.max(mxv, mvs[i].getSpeedMps());
+        mxv = Math.max(mxv, mvs[i].magnitude().in(MetersPerSecond));
       }
 
       // Normalize module velocities to preserve direction when exceeding speed limits
@@ -103,44 +104,44 @@ public class SwerveDynamics {
   }
 
   public static class ModuleVelocity {
-    private Translation2d velocity;
+    private LinearVelocity magnitude;
+    private Rotation2d heading;
 
-    public ModuleVelocity(Translation2d inner) {
-      this.velocity = inner;
+    public ModuleVelocity(double magnitudeMeters, Rotation2d heading) {
+      this.magnitude = MetersPerSecond.of(magnitudeMeters);
+      this.heading = heading;
     }
 
-    public ModuleVelocity(double magnitude, Rotation2d angle) {
-      this.velocity = new Translation2d(magnitude, angle);
+    public ModuleVelocity(Translation2d vector) {
+      this.magnitude = MetersPerSecond.of(vector.getNorm());
+      this.heading = vector.getAngle();
     }
 
     public ModuleVelocity scale(double scalar) {
-      this.velocity = velocity.times(scalar);
+      this.magnitude = magnitude.times(scalar);
       return this;
     }
 
-    public final Translation2d toTranslation2d() {
-      return this.velocity;
+    public final LinearVelocity magnitude() {
+      return this.magnitude;
     }
 
     public final Rotation2d getHeading() {
-      return velocity.getAngle();
+      return this.heading;
     }
 
-    public final double getSpeedMps() {
-      return velocity.getNorm();
-    }
-
-    public void optimize(Rotation2d heading) {
+    public void optimize(Rotation2d curHeading) {
       Rotation2d error =
           Rotation2d.fromRadians(
-              MathUtil.angleModulus(velocity.getAngle().minus(heading).getRadians()));
+              MathUtil.angleModulus(this.heading.minus(curHeading).getRadians()));
       // Prevents uneccessary heading changes > 90°, takes opposite angle
       if (Math.abs(error.getRadians()) > Math.PI / 2) {
-        velocity = velocity.unaryMinus();
+        magnitude = magnitude.times(-1);
+        heading = heading.plus(Rotation2d.k180deg);
         error = error.plus(Rotation2d.k180deg);
       }
       // Reduces speed opposite to rotation vector
-      velocity = velocity.times(error.getCos());
+      magnitude = magnitude.times(error.getCos());
     }
   }
 

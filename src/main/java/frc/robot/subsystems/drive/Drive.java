@@ -9,14 +9,12 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.units.measure.Angle;
-import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.XboxController;
 import frc.robot.FieldConstants;
 import frc.robot.RobotState;
 import frc.robot.RobotState.*;
 import frc.robot.StateSubsystem;
 import frc.robot.SwerveDynamics.ChassisVelocity;
-import frc.robot.subsystems.drive.ModuleIO.ModuleIOOutputMode;
 import org.littletonrobotics.junction.Logger;
 
 public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.SystemState> {
@@ -83,12 +81,6 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
 
     statePeriodic();
 
-    if (DriverStation.isDisabled()) {
-      for (var m : swerveModules) {
-        m.setMode(ModuleIOOutputMode.BRAKE);
-      }
-    }
-
     /*
       RobotState.getInstance()
           .addOdometryObservation(
@@ -140,27 +132,32 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
   private void pidToPose() {
     // var robotPose = RobotState.getInstance().getEstimatedRobotPose();
     var robotPose = RobotState.getInstance().getSimulatedPose();
+    // A - B = B -> A
     var robotToTarget = driveToPointPose.getTranslation().minus(robotPose.getTranslation());
-    var distance = robotToTarget.getNorm();
+    double distance = robotPose.getTranslation().getDistance(driveToPointPose.getTranslation());
+    var output = Math.min(linearController.calculate(0, distance), DriveConstants.maxLinearSpeed);
     var heading = robotToTarget.getAngle();
 
-    var output = Math.min(linearController.calculate(distance, 0), DriveConstants.maxLinearSpeed);
-    var vx = output * heading.getCos();
-    var vy = output * heading.getSin();
-
     var vw =
-        Math.min(
-            omegaController.calculate(
-                robotPose.getRotation().getRadians(), driveToPointPose.getRotation().getRadians()),
-            DriveConstants.maxRotationalSpeed);
+        omegaController.calculate(
+            robotPose.getRotation().getRadians(), driveToPointPose.getRotation().getRadians());
+
+    var linearVector = robotToTarget.times(output / robotToTarget.getNorm());
 
     if (linearController.atSetpoint() && omegaController.atSetpoint()) {
       setState(SystemState.TELEOP_DRIVE);
       runChassisRelativeVelocity(new ChassisVelocity());
     } else {
-      var robotVelocity = new ChassisVelocity(RadiansPerSecond.of(vw), new Translation2d(vx, vy));
-      Logger.recordOutput("PidToPose/outputOmega", vw);
-      Logger.recordOutput("PidToPose/outputLinear", new Translation2d(vx, vy));
+      // var robotVelocity = ChassisVelocity.fromFieldRelative(vx, vy, vw, gyroData.yaw);
+      var robotVelocity = new ChassisVelocity(RadiansPerSecond.of(vw), linearVector);
+
+      Logger.recordOutput("pidToPose/pidLinearOutput", output);
+      Logger.recordOutput("pidToPose/robotToTarget", robotToTarget);
+      Logger.recordOutput("pidToPose/distance", distance);
+      Logger.recordOutput("pidToPose/driveToPointPose", driveToPointPose);
+      Logger.recordOutput("pidToPose/outputOmega", vw);
+      Logger.recordOutput("pidToPose/outputLinear", linearVector);
+
       runChassisRelativeVelocity(robotVelocity);
     }
   }
@@ -176,7 +173,7 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
     final double sign = FieldConstants.isBlueAlliance() ? -1 : 1;
     final double vX = sX * DriveConstants.maxLinearSpeed * sign;
     final double vY = sY * DriveConstants.maxLinearSpeed * sign;
-    final double vW = sW * DriveConstants.maxRotationalSpeed;
+    final double vW = sW * DriveConstants.maxOmega;
 
     return ChassisVelocity.fromFieldRelative(vX, vY, vW, gyroData.yaw);
   }
@@ -186,6 +183,7 @@ public class Drive extends StateSubsystem<frc.robot.subsystems.drive.Drive.Syste
   }
 
   private void runChassisRelativeVelocity(ChassisVelocity velocity) {
+    Logger.recordOutput("driveVelocity/translationVector", velocity.velocityVector);
     var moduleVelocities = velocity.inverseKinematics(swerveModules);
     for (int i = 0; i < 4; ++i) {
       swerveModules[i].runVelocity(moduleVelocities[i]);

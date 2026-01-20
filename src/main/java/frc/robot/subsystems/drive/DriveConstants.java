@@ -14,16 +14,18 @@ public class DriveConstants {
   public static record PIDGains(double kp, double ki, double kd) {}
   ;
 
-  public static final TrapezoidProfile.Constraints rotConstraints =
-      new TrapezoidProfile.Constraints(0.0, 0.0);
-  public static final PIDGains driveGains = new PIDGains(0.1, 0.0, 0.0);
+  public static final PIDGains driveGains = new PIDGains(0.5, 0.0, 0.0);
   public static final PIDGains rotGains = new PIDGains(10.0, 0.0, 0.0);
   public static final double maxLinearSpeed = 6.7;
-  public static final double maxRotationalSpeed = 12.0;
+  public static final double maxOmega = 10.0;
+  public static final double maxOmegaAccel = 15.0;
   public static final Distance wheelRadius = Inches.of(2.6);
   public static final boolean motionMagicSteerControl = false;
   public static final Distance driveTolerance = Meters.of(0.0);
   public static final Angle rotateTolerance = Degrees.of(0.0);
+
+  public static final TrapezoidProfile.Constraints rotConstraints =
+      new TrapezoidProfile.Constraints(maxOmega, maxOmegaAccel);
 
   private static final double trackWidthMeters = Constants.config.trackWidth().in(Meters);
   private static final double trackLengthMeters = Constants.config.trackLength().in(Meters);
@@ -35,8 +37,8 @@ public class DriveConstants {
   };
 
   // Feed forward
-  public static final double drivekS = 5.0;
-  public static final double drivekV = 0.0;
+  public static final double drivekS = 0.0;
+  public static final double drivekV = 2.0;
 
   // Sim specific
   public static final DriveTrainSimulationConfig mapleSimConfig =
